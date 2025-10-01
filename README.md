@@ -59,9 +59,9 @@ Then, run the following:
 python main.py
 ```
 
-After running this, please double check whether it includes everyone by cross referencing the `results.json` file with the ride sheet. Failing to do so may result in people not getting picked up.
+#### After running this, please double check whether it includes everyone by cross referencing the `results.json` file with the ride sheet. Failing to do so may result in people not getting picked up.
 
-After running this, the ride sheet should include two links for each driver: The first link which is a hyperlink on top of the driver's name should have directions to the rink. The second link should be to the right of the driver's name which has a link for the return route.
+The ride sheet should now include two links for each driver: The first link which is a hyperlink on top of the driver's name should have directions to the rink. The second link should be to the right of the driver's name which has a link for the return route.
 
 ### Notes
 
