@@ -71,4 +71,4 @@ The ride sheet should now include two links for each driver: The first link whic
 
 ### Final Notes
 
-I designed the code to make it very obvious if it can't find a driver's/passenger's address. If this happens, it should display a bright red error in the terminal displaying who's name it couldn't find the address of. To fix this, make sure their name matches the ride sheet. There may be other errors/bugs I'm not aware of, so after you run it, please do your due diligence and check `results.json` to ensure that what's displayed in that file matches the Google Sheet.
+I designed the code to make it very obvious if it can't find a driver's/passenger's address. If this happens, it should display a bright red error in the terminal displaying who's name it couldn't find the address of. To fix this, make sure their name matches the "Full Addresses and Info" sheet. There may be other errors/bugs I'm not aware of, so after you run it, please do your due diligence and check `results.json` to ensure that what's displayed in that file matches the Google Sheet.
