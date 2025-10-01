@@ -1,0 +1,16 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Credentials/Secrets
+credentials.json
+.env
+results.json
+calicehockey-map-d5de75ad4b3d.json
