@@ -3,6 +3,8 @@ import sys
 from typing import Dict
 from urllib.parse import quote
 from urllib.parse import quote
+import os
+import shutil
 
 def fetch_values(service, spreadsheet_id: str, range_a1: str):
     """Read values from a sheet range using the values API (faster, no formatting)."""
@@ -186,3 +188,70 @@ def attach_maps_links(groups: list[dict], start_navigation: bool = False) -> lis
         if br and isinstance(br, dict) and "order" in br and br["order"]:
             g["maps_url"] = build_gmaps_directions_url(br["order"], start_navigation=start_navigation)
     return groups
+
+def _supports_ansi() -> bool:
+    """Best-effort detection for ANSI color support."""
+    return sys.stdout.isatty() and (os.name != "nt" or "WT_SESSION" in os.environ or "ANSICON" in os.environ)
+
+def _red(text: str) -> str:
+    return f"\033[1;31m{text}\033[0m" if _supports_ansi() else text
+
+def _red_bg(text: str) -> str:
+    # white bold on red background for maximum visibility
+    return f"\033[1;37;41m{text}\033[0m" if _supports_ansi() else text
+
+def print_error_banner(title: str, details: str, fatal: bool = False) -> None:
+    """
+    Prints a big, highly visible red banner to stderr.
+    If fatal=True, the header says FATAL.
+    """
+    width = shutil.get_terminal_size(fallback=(100, 20)).columns
+    width = max(80, min(width, 140))  # keep it reasonable
+    bar = _red_bg(" " * width)
+    label = "FATAL" if fatal else "ERROR"
+    header = f" {label}: {title} ".center(width, " ")
+    header_colored = _red_bg(header)
+
+    lines = []
+    for line in details.strip().splitlines():
+        # Ensure each content line is padded and colored for readability
+        content = f" {line}".ljust(width, " ")
+        lines.append(_red_bg(content))
+
+    print(file=sys.stderr)
+    print(bar, file=sys.stderr)
+    print(header_colored, file=sys.stderr)
+    for l in lines:
+        print(l, file=sys.stderr)
+    print(bar, file=sys.stderr)
+    print(file=sys.stderr)
+
+def _yellow_bg(text: str) -> str:
+    # black text on yellow background
+    return f"\033[30;43m{text}\033[0m" if _supports_ansi() else text
+
+def _cyan_bg(text: str) -> str:
+    # black text on cyan background
+    return f"\033[30;46m{text}\033[0m" if _supports_ansi() else text
+
+def print_check_results_reminder(path: str) -> None:
+    """Print a very visible reminder to check the results.json file."""
+    width = shutil.get_terminal_size(fallback=(100, 20)).columns
+    width = max(80, min(width, 140))
+
+    bar = _cyan_bg(" " * width)
+    header = f" Directions Generated! --> [ACTION REQUIRED] PLEASE CHECK {path} ".center(width, " ")
+    header_colored = _cyan_bg(header)
+
+    message = f"""ACTION REQUIRED:
+      - Confirm that EVERY driver and passenger you expect
+        is included on the ride sheet to ensure everyone gets picked up
+    """.strip()
+
+    print(file=sys.stderr)
+    print(bar, file=sys.stderr)
+    print(header_colored, file=sys.stderr)
+    for line in message.splitlines():
+        print(_cyan_bg(f" {line}".ljust(width, " ")), file=sys.stderr)
+    print(bar, file=sys.stderr)
+    print(file=sys.stderr)

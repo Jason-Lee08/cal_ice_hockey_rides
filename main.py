@@ -236,18 +236,44 @@ def attach_addresses_to_groups(groups: List[Dict], name_to_addr: Dict[str, str])
     For each group, lookup the driver's address (starting_address)
     and each passenger's address (pickup_addresses).
     Adds two fields to each group dict: 'starting_address' and 'pickup_addresses'.
+
+    Behavior on missing addresses:
+      - Driver missing address: FATAL (reported and process exits after all groups are checked)
+      - Passenger missing address: LOUD ERROR banner (non-fatal; passenger is skipped)
     """
+    fatal_missing: List[str] = []  # collect driver issues to exit after surfacing all
     for g in groups:
         driver_name = g.get("driver", "")
         passengers = g.get("passengers", [])
+        column = g.get("column", "?")
 
         driver_key = normalize_name(driver_name) if driver_name else ""
 
+        # ------- DRIVER ADDRESS LOOKUP --------
         starting_address = None
         for k in name_to_addr.keys():
-            if driver_key in k:
+            if driver_key and driver_key in k:
                 starting_address = name_to_addr[k]
+                break
 
+        if not starting_address:
+            # Loud, visible, red banner; mark as fatal and keep checking others so we show all issues at once
+            title = f"Driver address NOT FOUND (Column {column})"
+            details = f"""
+            Driver: {driver_name or '(missing)'}
+            Column: {column}
+            Why this matters: Without a starting address, we cannot compute routes for this group.
+
+            How to fix:
+              1) Make sure the driver's full name exactly matches the "Full Address & Contact Info" sheet.
+              2) Confirm the driver row in "{column}" is not marked red or anything weird with the highlighting
+              3) Check for stray whitespace or punctuation; the code normalizes with lowercasing + internal single spaces.
+
+            """
+            print_error_banner(title, details, fatal=True)
+            fatal_missing.append(driver_name or f"(column {column})")
+
+        # ---- PASSENGER ADDRESS LOOKUP ----
         pickup_addresses = set()
         for p in passengers:
             addr = None
@@ -255,22 +281,46 @@ def attach_addresses_to_groups(groups: List[Dict], name_to_addr: Dict[str, str])
             for k in name_to_addr.keys():
                 if normal_name in k:
                     addr = name_to_addr[k]
+                    break
+
             if addr:
                 if addr != starting_address:
                     pickup_addresses.add(addr)
             else:
-                # If a passenger has no address, we skip; optionally log a warning:
-                print(f"[WARN] No address found for passenger '{p}'", file=sys.stderr)
-                pass
-        
-        pickup_addresses = list(pickup_addresses)
-        g["starting_address"] = starting_address
-        g["pickup_addresses"] = pickup_addresses
+                # Loud, visible, non-fatal banner for passengers (skip them for routing)
+                title = "Passenger address NOT FOUND"
+                details = f"""
+Passenger: {p}
+Driver / Column: {driver_name or '(unknown)'} / {column}
+Action taken: This passenger will be SKIPPED in route computation.
 
+How to fix:
+    1) Ensure the passenger's name exists (column A) and has a valid address (column B)
+        in the "Full Address & Contact Info" sheet (row after header).
+    2) Confirm the passenger's name spelling matches what's in the address sheet.
+    3) Remove red highlight if present; red-marked names are treated as excluded.
+                """
+                print_error_banner(title, details, fatal=False)
+                # also keep the previous lightweight stderr line if you want:
+                # print(f"[WARN] No address found for passenger '{p}'", file=sys.stderr)
+
+        g["starting_address"] = starting_address
+        g["pickup_addresses"] = list(pickup_addresses)
+
+    # If any driver was missing an address, abort after reporting all problems
+    if fatal_missing:
+        summary = " / ".join(fatal_missing[:5]) + (" ..." if len(fatal_missing) > 5 else "")
+        title = "Cannot continue: one or more drivers have no address"
+        details = f"""
+        A driver must have a valid starting address to compute routes.
+        Affected drivers (sample): {summary}
+
+        Resolve driver address issues and re-run the script.
+        """
+        print_error_banner(title, details, fatal=True)
+        sys.exit(1)
 
     return groups
-
-
 
 def main():
     spreadsheet_id = "1sVtfMNfGRK7UE8JGKcOxsJO6uhMj6V1SGapW-K6xHvI"
@@ -288,8 +338,6 @@ def main():
     name_to_addr = build_name_to_address_map(service, spreadsheet_id, addr_sheet, start_row=1)
     groups = attach_addresses_to_groups(groups, name_to_addr)
 
-    print(json.dumps(groups, indent=2, ensure_ascii=False))
-
     # 3) Compute BOTH directions with live traffic
     groups = compute_forward_and_return_routes(groups, final_destination)
 
@@ -302,9 +350,13 @@ def main():
     # 6) Write return link into the cell to the right of the driver
     write_return_links_right_of_driver(service, spreadsheet_id, rides_sheet, groups)
 
-    print(json.dumps(groups, indent=2, ensure_ascii=False))
     with open("results.json", "w") as f:
         f.write(json.dumps(groups, indent=2))
+    
+    LINK = "https://docs.google.com/spreadsheets/d/1sVtfMNfGRK7UE8JGKcOxsJO6uhMj6V1SGapW-K6xHvI/"
+    print(f"Completed! Check the google sheet here: {LINK}")
+
+    print_check_results_reminder("results.json")
 
 
 if __name__ == "__main__":

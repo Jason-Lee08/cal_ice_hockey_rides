@@ -43,3 +43,26 @@ Basically, this does the following:
 To run this project, you need Sheets access (service account) and Maps traffic (API key). 
 
 To get this, I'll just share a file called `calicehockey-map-d5de75ad4b3d.json` with you. This gives you access to the service account I'm using which is how you read/edit the spreadsheet. I'll also give you a `.env` file that has a `GOOGLE_MAPS_API_KEY` which is what is used to get the live traffic data.
+
+### 2) Running the script
+
+To run the script, make sure:
+
+1) the UV environment is activated (`source .venv/bin/activate`) 
+
+2) You have both credential JSON files
+
+
+Then, run the following:
+
+```
+python main.py
+```
+
+After running this, please double check whether it includes everyone by cross referencing the `results.json` file with the ride sheet. Failing to do so may result in people not getting picked up.
+
+After running this, the ride sheet should include two links for each driver: The first link which is a hyperlink on top of the driver's name should have directions to the rink. The second link should be to the right of the driver's name which has a link for the return route.
+
+### Notes
+
+I designed the code to make it very obvious if it can't find a driver's/passenger's address. If this happens, it should display a bright red error in the terminal displaying who's name it couldn't find the address of. To fix this, make sure their name matches the ride sheet. There may be other errors/bugs I'm not aware of, so after you run it, please do your due diligence and check `results.json` to ensure that what's displayed in that file matches the Google Sheet.
