@@ -1,6 +1,6 @@
 from googleapiclient.errors import HttpError
 import sys
-from typing import Dict
+from typing import Dict, Tuple, List, Optional
 from urllib.parse import quote
 from urllib.parse import quote
 import os
@@ -255,3 +255,85 @@ def print_check_results_reminder(path: str) -> None:
         print(_cyan_bg(f" {line}".ljust(width, " ")), file=sys.stderr)
     print(bar, file=sys.stderr)
     print(file=sys.stderr)
+
+def build_name_to_addr_and_display_map(
+    service,
+    spreadsheet_id: str,
+    sheet_name: str = "Full Address & Contact Info",
+    start_row: int = 1
+) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """
+    Like build_name_to_address_map, but also returns a map of
+    normalized_name -> original display name (exact as in the sheet).
+    """
+    rows = fetch_values(service, spreadsheet_id, f"{sheet_name}!A:B")
+    name_to_addr: Dict[str, str] = {}
+    key_to_display: Dict[str, str] = {}
+
+    for i, row in enumerate(rows):
+        if i < start_row:
+            continue
+        if not row:
+            continue
+
+        name = row[0].strip() if len(row) >= 1 and row[0] else ""
+        addr = row[1].strip() if len(row) >= 2 and row[1] else ""
+        if not name or not addr:
+            continue
+
+        key = normalize_name(name)
+        name_to_addr[key] = addr
+        key_to_display[key] = name  # preserve original spelling/casing
+
+    return name_to_addr, key_to_display
+
+
+def _match_name_to_key(normalized_query: str, name_keys: List[str]) -> Optional[str]:
+    """
+    Fuzzy-ish match: if normalized_query is contained in a name key,
+    or vice-versa, treat it as a match. Returns the matched key or None.
+    """
+    for k in name_keys:
+        if normalized_query in k or k in normalized_query:
+            return k
+    return None
+
+
+def find_unassigned_people(
+    groups: List[Dict],
+    name_to_addr: Dict[str, str],
+    key_to_display: Optional[Dict[str, str]] = None
+) -> List[Dict[str, str]]:
+    """
+    Return a list of people from the address sheet who are NOT present
+    in any car (neither driver nor passenger).
+    Matching uses the same loose substring logic as address attachment.
+    Output entries include: {"name": <display or normalized>, "address": <addr>}
+    """
+    # 1) Collect all names present in car groups (drivers + passengers)
+    present_names_norm: List[str] = []
+    for g in groups:
+        d = g.get("driver")
+        if d:
+            present_names_norm.append(normalize_name(d))
+        for p in g.get("passengers", []) or []:
+            present_names_norm.append(normalize_name(p))
+
+    # 2) Resolve each present name to a key in the address map using the same matching strategy
+    name_keys = list(name_to_addr.keys())
+    assigned_keys: set[str] = set()
+    for q in present_names_norm:
+        matched = _match_name_to_key(q, name_keys)
+        if matched:
+            assigned_keys.add(matched)
+
+    # 3) Anything in the address sheet that wasn't assigned is "unassigned"
+    unassigned: List[Dict[str, str]] = []
+    for key, addr in name_to_addr.items():
+        if key not in assigned_keys:
+            display = key_to_display.get(key, key) if key_to_display else key
+            unassigned.append({"name": display, "address": addr})
+
+    # Sort for nicer output (by name)
+    unassigned.sort(key=lambda x: x["name"].lower())
+    return unassigned

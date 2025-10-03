@@ -334,9 +334,12 @@ def main():
     sheet_data = extract_sheet_grid(service, spreadsheet_id, rides_sheet)
     groups = parse_groups(sheet_data)
 
-    # 2) Attach addresses
-    name_to_addr = build_name_to_address_map(service, spreadsheet_id, addr_sheet, start_row=1)
+    # 2) Build maps + attach addresses
+    name_to_addr, key_to_display = build_name_to_addr_and_display_map(service, spreadsheet_id, addr_sheet, start_row=1)
     groups = attach_addresses_to_groups(groups, name_to_addr)
+
+    # 2b) Find everyone not in any car
+    unassigned = find_unassigned_people(groups, name_to_addr, key_to_display)
 
     # 3) Compute BOTH directions with live traffic
     groups = compute_forward_and_return_routes(groups, final_destination)
@@ -350,8 +353,11 @@ def main():
     # 6) Write return link into the cell to the right of the driver
     write_return_links_right_of_driver(service, spreadsheet_id, rides_sheet, groups)
 
+    # Print groups and unassigned to console
+    print(json.dumps(unassigned, indent=2, ensure_ascii=False))
+
     with open("results.json", "w") as f:
-        f.write(json.dumps(groups, indent=2))
+        f.write(json.dumps({"groups": groups, "unassigned": unassigned}, indent=2))
     
     LINK = "https://docs.google.com/spreadsheets/d/1sVtfMNfGRK7UE8JGKcOxsJO6uhMj6V1SGapW-K6xHvI/"
     print(f"Completed! Check the google sheet here: {LINK}")
